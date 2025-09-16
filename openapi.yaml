@@ -1,0 +1,834 @@
+openapi: 3.0.2
+info:
+  title: HTM Payment API
+  description: |-
+    OpenAPI Specifications for the HTM Payment API
+    
+    ## Authentication
+    
+    All authenticated endpoints require two headers:
+    - `X-API-Key`: Your Hex Safe API key (e.g., hsk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx)
+    - `Authorization`: Bearer JWT token signed with your private key
+    
+    ### JWT Token Generation
+    
+    The JWT payload must include:
+    - `api-key`: Your API key
+    - `nonce`: A unique number for each request
+    - `uri`: The endpoint path (e.g., "/pay/transactions")
+    - `exp`: Token expiration timestamp (max 72 hours)
+    - `digest`: SHA-256 hash of the request body (for POST requests)
+    
+    ### Example API Call
+    
+    ```bash
+    curl -X GET 'https://api.hextrust.com/v1/convert-to-pay/getQuote' \
+      -H 'X-API-Key: hsk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' \
+      -H 'Authorization: Bearer eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9...'
+    ```
+    
+    For more details on authentication and JWT generation, see the security schemes section below.
+
+  
+  version: 1.0.0
+servers:
+  - url: https://api.hextrust.com/v1
+    description: HTM Payment API Server
+tags:
+  - name: Convert-To-Pay
+    description: Convert-To-Pay Endpoints
+  - name: System
+    description: System Endpoints
+paths:
+  /system/ping:
+    get:
+      summary: Test Connectivity
+      description: |-
+        Test connectivity to the Rest API.
+      tags:
+        - System
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: 'OK'
+                required:
+                  - status
+      security:
+        - ApiKeyAuth: []
+  /system/time:
+    get:
+      summary: Check Server Time
+      description: |-
+        Test connectivity to the Rest API and get the current server time.
+      tags:
+        - System
+      responses:
+        '200':
+          description: Server UTC timestamp
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  serverTime:
+                    type: integer
+                    format: int64
+                    description: The UTC timestamp in milliseconds
+                    example: 1741234567890
+                required:
+                  - serverTime
+      security:
+        - ApiKeyAuth: []
+  /convert-to-pay/availablePairs:
+    get:
+      summary: List All Convert Pairs
+      description: >-
+        Query for all convertible token pairs and the tokens' respective
+        upper/lower limits. If fromAsset and toAsset are not provided, all
+        supported pairs will be returned.
+      tags:
+        - Convert-To-Pay
+      parameters:
+        - name: fromAsset
+          in: query
+          required: false
+          description: User spends asset
+          schema:
+            type: string
+            example: USDT
+        - name: toAsset
+          in: query
+          required: false
+          description: User receives fiat asset
+          schema:
+            type: string
+            example: USD
+      responses:
+        '200':
+          description: List Convert Pairs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    fromAsset:
+                      type: string
+                      example: USDT
+                    toAsset:
+                      type: string
+                      example: USD
+                    fromAssetMinAmount:
+                      type: string
+                      example: '10'
+                    fromAssetMaxAmount:
+                      type: string
+                      example: '1000000'
+                    toAssetMinAmount:
+                      type: string
+                      example: '10'
+                    toAssetMaxAmount:
+                      type: string
+                      example: '1000000'
+                  required:
+                    - fromAsset
+                    - toAsset
+                    - fromAssetMinAmount
+                    - fromAssetMaxAmount
+                    - toAssetMinAmount
+                    - toAssetMaxAmount
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error'
+        '401':
+          description: Unauthorized Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error'
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+  /convert-to-pay/assetInfo:
+    get:
+      summary: Query order quantity precision per asset
+      description: |-
+        Query for supported asset precision information
+      tags:
+        - Convert-To-Pay
+      parameters: []  
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Asset Precision Information
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    asset:
+                      type: string
+                      example: BTC
+                    decimals:
+                      type: integer
+                      format: int32
+                      example: 8
+                  required:
+                    - asset
+                    - fraction
+              examples:
+                example1:
+                  summary: Example Response
+                  value:
+                    - asset: BTC
+                      decimals: 8
+                    - asset: ETH
+                      decimals: 18
+                    - asset: USDT
+                      decimals: 6
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error'
+        '401':
+          description: Unauthorized Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error'
+  /convert-to-pay/getQuote:
+    post:
+      summary: Send quote request
+      description: |-
+        Request a quote for the requested token pairs
+      tags:
+        - Convert-To-Pay
+      parameters:
+        - name: fromAsset
+          in: query
+          required: true
+          schema:
+            type: string
+            example: USDT
+        - name: toAsset
+          in: query
+          required: true
+          schema:
+            type: string
+            example: AED
+        - name: fromAmount
+          in: query
+          required: false
+          description: >-
+            When specified, it is the amount you will be debited after the conversion
+          schema:
+            type: string
+            example: '50000'
+        - name: toAmount
+          in: query
+          required: false
+          description: >-
+            When specified, it is the amount you will be debited after the conversion. If fromAmount is also specified, fromAmount will be used and toAmount will be ignored.
+          schema:
+            type: string
+            example: '183624.98'
+        - name: validTime
+          in: query
+          required: false
+          description: 10s, 30s, 1m, 2m, default 30s
+          schema:
+            type: string
+            example: '30s'
+
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      x-code-samples:
+        - lang: 'curl'
+          source: |
+            curl -X POST 'https://api.hextrust.com/v1/convert-to-pay/getQuote?fromAsset=BTC&toAsset=USDT&fromAmount=1&timestamp=1741234567000&signature=your_signature' \
+            -H 'accept: application/json' \
+            -H 'content-type: application/json' \
+            -H 'X-API-Key: hsk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' \
+            -H 'Authorization: Bearer eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9...'
+        - lang: 'javascript'
+          source: |
+            const params = new URLSearchParams({
+              fromAsset: 'BTC',
+              toAsset: 'USDT',
+              fromAmount: '1',
+              timestamp: Date.now().toString()
+            });
+            
+            const response = await fetch(`https://api.hextrust.com/v1/convert-to-pay/getQuote?${params}`, {
+              method: 'POST',
+              headers: {
+                'accept': 'application/json',
+                'content-type': 'application/json',
+                'X-API-Key': 'hsk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+                'Authorization': 'Bearer ' + createToken(apiKey, nonce, '/convert-to-pay/getQuote', privateKey)
+              }
+            });
+      responses:
+        '200':
+          description: Quote Request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  quoteId:
+                    type: string
+                    example: '12415572564'
+                  ratio:
+                    type: string
+                    example: '38163.7'
+                  inverseRatio:
+                    type: string
+                    example: '0.0000262'
+                  validTimestamp:
+                    type: integer
+                    format: int64
+                    example: 1741123456789
+                  toAmount:
+                    type: string
+                    example: '3816.37'
+                  fromAmount:
+                    type: string
+                    example: '0.1'
+                required:
+                  - quoteId
+                  - ratio
+                  - inverseRatio
+                  - validTimestamp
+                  - toAmount
+                  - fromAmount
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error'
+        '401':
+          description: Unauthorized Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error'
+  /convert-to-pay/acceptQuote:
+    post:
+      summary: Accept Quote and get a payment ID
+      description: |-
+        Accept the offered quote by quote ID and get a payment ID
+      tags:
+        - Convert-To-Pay
+      parameters:
+        - name: quoteId
+          in: query
+          required: true
+          schema:
+            type: string
+            example: '0199276c-8df3-79ab-9d6b-e25e35c19123'
+        
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Accept Quote
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  paymentId:
+                    type: string
+                    example: '0186bdfe-2b43-7b0c-85dd-dd03f30e9ecd'
+                    description: 'Growing incremental UUID v7 for payment identification'
+                  createTime:
+                    type: integer
+                    format: int64
+                    description: 'The UTC timestamp in milliseconds when the payment was created'
+                    example: 1741456789012
+                  depositAddress:
+                    type: string
+                    example: '0x3f5CE5FBFe3E9af3971dD833D26BA9b5C936f0bE'
+                    description: 'The crypto asset deposit address to fund the payment'
+                  depositChain:
+                    type: string
+                    example: Ethereum
+                    description: 'The blockchain network for the crypto asset deposit'
+                  orderStatus:
+                    type: string
+                    example: PROCESS
+                required:
+                  - paymentId
+                  - createTime
+                  - depositAddress
+                  - depositChain
+                  - orderStatus
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error'
+        '401':
+          description: Unauthorized Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error'
+  /convert-to-pay/paymentStatus:
+    get:
+      summary: Order status
+      description: |-
+        Query order status by payment ID.
+      tags:
+        - Convert-To-Pay
+      parameters:
+        - name: paymentId
+          in: query
+          required: false
+          schema:
+            type: string
+            example: '0186bdfe-2b43-7b0c-85dd-dd03f30e9ecd'
+        
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Order Status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  paymentId:
+                    type: string
+                    example: '0186bdfe-2b43-7b0c-85dd-dd03f30e9ecd'
+                  orderStatus:
+                    type: string
+                    example: SUCCESS
+                  fromAsset:
+                    type: string
+                    example: USDT
+                  fromAmount:
+                    type: string
+                    example: '50000'
+                  toAsset:
+                    type: string
+                    example: AED
+                  toAmount:
+                    type: string
+                    example: '183624.98'
+                  ratio:
+                    type: string
+                    example: '3.6734996'
+                  inverseRatio:
+                    type: string
+                    example: '0.2722941073'
+                  createTime:
+                    type: integer
+                    format: int64
+                    description: 'The UTC timestamp in milliseconds when the order was created'
+                    example: 1757304877000
+                required:
+                  - paymentId
+                  - orderStatus
+                  - fromAsset
+                  - fromAmount
+                  - toAsset
+                  - toAmount
+                  - ratio
+                  - inverseRatio
+                  - createTime
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error'
+        '401':
+          description: Unauthorized Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error'
+  /convert-to-pay/tradeFlow:
+    get:
+      summary: Get Convert To Pay Trade History
+      description: |-
+        - The max interval between startTime and endTime is 30 days.
+      tags:
+        - Convert-To-Pay
+      parameters:
+        - name: startTime
+          in: query
+          required: true
+          description: UTC timestamp in ms
+          schema:
+            type: integer
+            format: int64
+            example: 1754006400000
+        - name: endTime
+          in: query
+          required: true
+          description: UTC timestamp in ms
+          schema:
+            type: integer
+            format: int64
+            example: 1756684800000
+        - name: limit
+          in: query
+          description: default 100, max 1000
+          required: false
+          schema:
+            type: integer
+            format: int32
+            example: 100
+        
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Convert To Pay Trade History
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  list:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        quoteId:
+                          type: string
+                          example: '0199277a-4093-7937-a429-f581069c3267'
+                        paymentId:
+                          type: string
+                          example: '01992793-250e-78b4-82c9-dc2d13870564'
+                        orderStatus:
+                          type: string
+                          example: SUCCESS
+                        fromAsset:
+                          type: string
+                          example: USDT
+                        fromAmount:
+                          type: string
+                          example: '50000'
+                        toAsset:
+                          type: string
+                          example: AED
+                        toAmount:
+                          type: string
+                          example: '183624.98'
+                        ratio:
+                          type: string
+                          example: '3.6734996'
+                          description: price ratio
+                        inverseRatio:
+                          type: string
+                          example: '0.2722941073'
+                          description: inverse price
+                        createTime:
+                          type: integer
+                          format: int64
+                          example: 1754627297000
+                      required:
+                        - quoteId
+                        - paymentId
+                        - orderStatus
+                        - fromAsset
+                        - fromAmount
+                        - toAsset
+                        - toAmount
+                        - ratio
+                        - inverseRatio
+                        - createTime
+                  startTime:
+                    type: integer
+                    format: int64
+                    example: 1732752000000
+                  endTime:
+                    type: integer
+                    format: int64
+                    example: 1740614400000
+                  limit:
+                    type: integer
+                    format: int32
+                    example: 100
+                  moreData:
+                    type: boolean
+                    example: false
+                required:
+                  - list
+                  - startTime
+                  - endTime
+                  - limit
+                  - moreData
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error'
+        '401':
+          description: Unauthorized Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error'
+  /convert-to-pay/refund:
+    post:
+      summary: Refund Order
+      description: |-
+        Refund payment API used to refund for a payment that has could not have been executed, e.g. due to late transfer of funds (settlement) from the client.
+      tags:
+        - Convert-To-Pay
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refundRequestId
+                - paymentId
+              properties:
+                refundRequestId:
+                  type: string
+                  description: The unique ID assigned by the client to identify a refund request. The value must be same for one refund request.
+                  maxLength: 64
+                  example: '0199277a-4093-723f-8a82-79fb6d57e4d0'
+                paymentId:
+                  type: string
+                  description: The unique ID assigned by HTM for the original order to be refunded.
+                  maxLength: 19
+                  example: '0186bdfe-2b43-7b0c-85dd-dd03f30e9ecd'               
+                refundReason:
+                  type: string
+                  description: Reason for the refund
+                  maxLength: 256
+                  example: 'Customer requested refund'
+                webhookUrl:
+                  type: string
+                  description: The URL for refund order notification. If the webhookUrl is passed in the parameter, the webhook url configured on the client platform will not take effect.
+                  maxLength: 256
+                  example: 'https://your-domain.com/webhook/refund'
+      parameters: []
+        
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      x-code-samples:
+        - lang: 'curl'
+          source: |
+            curl -X POST 'https://api.hextrust.com/v1/pay/refund?timestamp=1741234567000&signature=your_signature' \
+            -H 'accept: application/json' \
+            -H 'content-type: application/json' \
+            -H 'X-API-Key: hsk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' \
+            -H 'Authorization: Bearer eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9...' \
+            -d '{
+              "refundRequestId": "68711039982968832",
+              "prepayId": "383729303729303",
+              "refundAmount": 25.17,
+              "refundReason": "Customer requested refund"
+            }'
+        - lang: 'javascript'
+          source: |
+            const requestBody = {
+              refundRequestId: "68711039982968832",
+              prepayId: "383729303729303",
+              refundAmount: 25.17,
+              refundReason: "Customer requested refund"
+            };
+            
+            const response = await fetch('https://api.hextrust.com/v1/pay/refund', {
+              method: 'POST',
+              headers: {
+                'accept': 'application/json',
+                'content-type': 'application/json',
+                'X-API-Key': 'hsk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+                'Authorization': 'Bearer ' + createToken(apiKey, nonce, '/pay/refund', privateKey, JSON.stringify(requestBody))
+              },
+              body: JSON.stringify(requestBody)
+            });
+      responses:
+        '200':
+          description: Refund Order Response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    description: Status of the API request
+                    enum: ['SUCCESS', 'FAIL']
+                    example: 'SUCCESS'
+                  data:
+                    $ref: '#/components/schemas/refundResult'
+                  errorMessage:
+                    type: string
+                    description: Error message if any
+                    maxLength: 256
+                    example: ''
+                required:
+                  - status
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error'
+        '401':
+          description: Unauthorized Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error'
+components:
+  parameters:
+    startTime:
+      name: startTime
+      in: query
+      description: UTC timestamp in ms
+      schema:
+        type: integer
+        format: int64
+    endTime:
+      name: endTime
+      in: query
+      description: UTC timestamp in ms
+      schema:
+        type: integer
+        format: int64
+  schemas:
+    error:
+      type: object
+      properties:
+        code:
+          type: string
+          description: Error code
+          example: '400001'
+        msg:
+          type: string
+          description: Error message
+          example: 'Invalid request'
+      required:
+        - code
+        - msg
+    refundResult:
+      type: object
+      properties:
+        refundRequestId:
+          type: string
+          description: The unique ID assigned by the merchant to identify a refund request
+          maxLength: 64
+          example: '0199277a-4093-7fa6-96e0-65a34f8b2e3e'
+        paymentId:
+          type: string
+          description: The unique ID assigned by HTM for the original order to be refunded
+          maxLength: 19
+          example: '0199277a-4093-7fe9-9ad1-a3340663dd5b'
+        orderAmount:
+          type: string
+          description: The total amount of accepted quote
+          example: '50000'
+        refundAmount:
+          type: string
+          description: The amount that will be refunded to the user (net of refund fee)
+          example: '49990'
+        refundCommission:
+          type: string
+          description: The refund transaction fees of this refund request
+          example: '10'
+
+      required:
+        - refundRequestId
+        - paymentId
+        - orderAmount
+        - refundAmount
+        - refundCommission
+  securitySchemes:
+    ApiKeyAuth:
+      name: X-API-Key
+      in: header
+      description: Hex Safe API Key (e.g., hsk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx)
+      type: apiKey
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT Bearer Token generated using ECDSA or RSA private key signing. The JWT should contain api-key, nonce, uri, exp, and digest claims.
+        
+        ## JWT Token Format
+        The JWT payload should contain:
+        ```json
+        {
+          "exp": 1741670400,
+          "api-key": "hsk_89c6d8a1d313461db1a37dd0d1f88661",
+          "uri": "/pay/transactions",
+          "nonce": 4242658338,
+          "digest": "wij3HROZrND_YdAzUHHuqJUYgUchg7EKg8bPzCk3LMXOq9c00UxCL2g82A6TcPxoo2w_eWDDJUf-dD18vvOKLg=="
+        }
+        ```
+        
+        ## Example JWT Token Generation (Go)
+        ```go
+        func createToken(apiKey string, nonce int64, endpoint string, privateKey *ecdsa.PrivateKey) string {
+          token := jwt.NewWithClaims(jwt.SigningMethodES256, jwt.MapClaims{
+            "api-key": apiKey,
+            "nonce":   nonce,
+            "uri":     endpoint,
+            "exp":     jwt.NewNumericDate(time.Now().Add(time.Hour * 72)),
+            "digest":  generateDigest(requestBody), // See Hex Safe documentation for digest generation
+          })
+          
+          tokenString, err := token.SignedString(privateKey)
+          if err != nil {
+            log.Fatal(err)
+          }
+          return tokenString
+        }
+        ```
+        
+        ## Example JWT Token Generation (Node.js)
+        ```javascript
+        const jwt = require('jsonwebtoken');
+        const crypto = require('crypto');
+        
+        function createToken(apiKey, nonce, endpoint, privateKey, requestBody = '') {
+          const payload = {
+            'api-key': apiKey,
+            'nonce': nonce,
+            'uri': endpoint,
+            'exp': Math.floor(Date.now() / 1000) + (72 * 60 * 60), // 72 hours
+            'digest': generateDigest(requestBody) // See Hex Safe documentation for digest generation
+          };
+          
+          return jwt.sign(payload, privateKey, { algorithm: 'ES256' });
+        }
+        ```
