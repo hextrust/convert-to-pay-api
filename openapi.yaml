@@ -167,7 +167,7 @@ paths:
         Query for supported asset precision information
       tags:
         - Convert-To-Pay
-      parameters: []  
+      parameters: []
       security:
         - ApiKeyAuth: []
         - BearerAuth: []
@@ -190,7 +190,7 @@ paths:
                       example: 8
                   required:
                     - asset
-                    - fraction
+                    - decimals
               examples:
                 example1:
                   summary: Example Response
@@ -256,7 +256,12 @@ paths:
           schema:
             type: string
             example: '30s'
-
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
       security:
         - ApiKeyAuth: []
         - BearerAuth: []
