@@ -220,76 +220,71 @@ paths:
         Request a quote for the requested token pairs
       tags:
         - Convert-To-Pay
-      parameters:
-        - name: fromAsset
-          in: query
-          required: true
-          schema:
-            type: string
-            example: USDT
-        - name: toAsset
-          in: query
-          required: true
-          schema:
-            type: string
-            example: AED
-        - name: fromAmount
-          in: query
-          required: false
-          description: >-
-            When specified, it is the amount you will be debited after the conversion
-          schema:
-            type: string
-            example: '50000'
-        - name: toAmount
-          in: query
-          required: false
-          description: >-
-            When specified, it is the amount you will be debited after the conversion. If fromAmount is also specified, fromAmount will be used and toAmount will be ignored.
-          schema:
-            type: string
-            example: '183624.98'
-        - name: validTime
-          in: query
-          required: false
-          description: 10s, 30s, 1m, 2m, default 30s
-          schema:
-            type: string
-            example: '30s'
       requestBody:
-        required: false
+        required: true
         content:
           application/json:
             schema:
               type: object
+              required:
+                - fromAsset
+                - toAsset
+              properties:
+                fromAsset:
+                  type: string
+                  description: User spends asset
+                  example: USDT
+                toAsset:
+                  type: string
+                  description: User receives fiat asset
+                  example: AED
+                fromAmount:
+                  type: string
+                  description: >-
+                    When specified, it is the amount you will be debited after the conversion
+                  example: '50000'
+                toAmount:
+                  type: string
+                  description: >-
+                    When specified, it is the amount you will be debited after the conversion. If fromAmount is also specified, fromAmount will be used and toAmount will be ignored.
+                  example: '183624.98'
+                validTime:
+                  type: string
+                  description: 10s, 30s, 1m, 2m, default 30s
+                  example: '30s'
       security:
         - ApiKeyAuth: []
         - BearerAuth: []
       x-code-samples:
         - lang: 'curl'
           source: |
-            curl -X POST 'https://api.hextrust.com/v1/convert-to-pay/getQuote?fromAsset=BTC&toAsset=USDT&fromAmount=1&timestamp=1741234567000&signature=your_signature' \
+            curl -X POST 'https://api.hextrust.com/v1/convert-to-pay/getQuote' \
             -H 'accept: application/json' \
             -H 'content-type: application/json' \
             -H 'X-API-Key: hsk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' \
-            -H 'Authorization: Bearer eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9...'
+            -H 'Authorization: Bearer eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9...' \
+            -d '{
+              "fromAsset": "BTC",
+              "toAsset": "USDT",
+              "fromAmount": "1"
+            }'
         - lang: 'javascript'
           source: |
-            const params = new URLSearchParams({
+            const requestBody = {
               fromAsset: 'BTC',
               toAsset: 'USDT',
-              fromAmount: '1',
-              timestamp: Date.now().toString()
-            });
+              fromAmount: '1'
+            };
             
-            const response = await fetch(`https://api.hextrust.com/v1/convert-to-pay/getQuote?${params}`, {
+            const response = await fetch('https://api.hextrust.com/v1/convert-to-pay/getQuote', {
               method: 'POST',
               headers: {
                 'accept': 'application/json',
                 'content-type': 'application/json',
                 'X-API-Key': 'hsk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
-                'Authorization': 'Bearer ' + createToken(apiKey, nonce, '/convert-to-pay/getQuote', privateKey)
-              }
+                'Authorization': 'Bearer ' + createToken(apiKey, nonce, '/convert-to-pay/getQuote', privateKey, JSON.stringify(requestBody))
+              },
+              body: JSON.stringify(requestBody)
             });
       responses:
         '200':
@@ -344,13 +339,19 @@ paths:
         Accept the offered quote by quote ID and get a payment ID
       tags:
         - Convert-To-Pay
-      parameters:
-        - name: quoteId
-          in: query
-          required: true
-          schema:
-            type: string
-            example: '0199276c-8df3-79ab-9d6b-e25e35c19123'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - quoteId
+              properties:
+                quoteId:
+                  type: string
+                  description: The quote ID to accept
+                  example: '0199276c-8df3-79ab-9d6b-e25e35c19123'
         
       security:
         - ApiKeyAuth: []
@@ -649,33 +650,31 @@ paths:
       x-code-samples:
         - lang: 'curl'
           source: |
-            curl -X POST 'https://api.hextrust.com/v1/pay/refund?timestamp=1741234567000&signature=your_signature' \
+            curl -X POST 'https://api.hextrust.com/v1/convert-to-pay/refund' \
             -H 'accept: application/json' \
             -H 'content-type: application/json' \
             -H 'X-API-Key: hsk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' \
             -H 'Authorization: Bearer eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9...' \
             -d '{
-              "refundRequestId": "68711039982968832",
-              "prepayId": "383729303729303",
-              "refundAmount": 25.17,
+              "refundRequestId": "0199277a-4093-723f-8a82-79fb6d57e4d0",
+              "paymentId": "0186bdfe-2b43-7b0c-85dd-dd03f30e9ecd",
               "refundReason": "Customer requested refund"
             }'
         - lang: 'javascript'
           source: |
             const requestBody = {
-              refundRequestId: "68711039982968832",
-              prepayId: "383729303729303",
-              refundAmount: 25.17,
+              refundRequestId: "0199277a-4093-723f-8a82-79fb6d57e4d0",
+              paymentId: "0186bdfe-2b43-7b0c-85dd-dd03f30e9ecd",
               refundReason: "Customer requested refund"
             };
             
-            const response = await fetch('https://api.hextrust.com/v1/pay/refund', {
+            const response = await fetch('https://api.hextrust.com/v1/convert-to-pay/refund', {
               method: 'POST',
               headers: {
                 'accept': 'application/json',
                 'content-type': 'application/json',
                 'X-API-Key': 'hsk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
-                'Authorization': 'Bearer ' + createToken(apiKey, nonce, '/pay/refund', privateKey, JSON.stringify(requestBody))
+                'Authorization': 'Bearer ' + createToken(apiKey, nonce, '/convert-to-pay/refund', privateKey, JSON.stringify(requestBody))
               },
               body: JSON.stringify(requestBody)
             });
