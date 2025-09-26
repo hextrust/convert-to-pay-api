@@ -248,10 +248,7 @@ paths:
                   description: >-
                     When specified, it is the amount you will be debited after the conversion. If fromAmount is also specified, fromAmount will be used and toAmount will be ignored.
                   example: '183624.98'
-                validTime:
-                  type: string
-                  description: 10s, 30s, 1m, 2m, default 30s
-                  example: '30s'
+
       security:
         - ApiKeyAuth: []
         - BearerAuth: []
@@ -296,6 +293,7 @@ paths:
                 properties:
                   quoteId:
                     type: string
+                    description: 'The unique ID assigned by HTM to identify a quote'
                     example: '12415572564'
                   ratio:
                     type: string
@@ -303,9 +301,10 @@ paths:
                   inverseRatio:
                     type: string
                     example: '0.0000262'
-                  validTimestamp:
+                  validTime:
                     type: integer
                     format: int64
+                    description: 'The UTC timestamp in milliseconds until when the quote is valid'
                     example: 1741123456789
                   toAmount:
                     type: string
@@ -350,7 +349,7 @@ paths:
               properties:
                 quoteId:
                   type: string
-                  description: The quote ID to accept
+                  description: The quote ID to accept. This is used as idempotency key.
                   example: '0199276c-8df3-79ab-9d6b-e25e35c19123'
         
       security:
@@ -373,6 +372,11 @@ paths:
                     format: int64
                     description: 'The UTC timestamp in milliseconds when the payment was created'
                     example: 1741456789012
+                  validTime:
+                    type: integer
+                    format: int64
+                    description: 'The UTC timestamp in milliseconds until when the quote is valid'
+                    example: 1741123456789
                   depositAddress:
                     type: string
                     example: '0x3f5CE5FBFe3E9af3971dD833D26BA9b5C936f0bE'
@@ -479,9 +483,9 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/error'
-  /convert-to-pay/tradeFlow:
+  /convert-to-pay/paymentHistory:
     get:
-      summary: Get Convert To Pay Trade History
+      summary: Get Convert To Pay Payment History
       description: |-
         - The max interval between startTime and endTime is 30 days.
       tags:
@@ -517,7 +521,7 @@ paths:
         - BearerAuth: []
       responses:
         '200':
-          description: Convert To Pay Trade History
+          description: Convert To Pay Payment History
           content:
             application/json:
               schema:
@@ -624,12 +628,12 @@ paths:
               properties:
                 refundRequestId:
                   type: string
-                  description: The unique ID assigned by the client to identify a refund request. The value must be same for one refund request.
+                  description: The unique ID assigned by the client to identify a refund request. The value must be unique for each refund request.
                   maxLength: 64
                   example: '0199277a-4093-723f-8a82-79fb6d57e4d0'
                 paymentId:
                   type: string
-                  description: The unique ID assigned by HTM for the original order to be refunded.
+                  description: The unique ID assigned by HTM for the original order to be refunded. This is used as idempotency key.
                   maxLength: 19
                   example: '0186bdfe-2b43-7b0c-85dd-dd03f30e9ecd'               
                 refundReason:
