@@ -11,13 +11,13 @@ info:
     - `Authorization`: Bearer JWT token signed with your private key
     
     ### JWT Token Generation
-    
+
     The JWT payload must include:
     - `api-key`: Your API key
     - `nonce`: A unique number for each request
-    - `uri`: The endpoint path (e.g., "/pay/transactions")
+    - `uri`: The endpoint path (e.g., "/convert-to-pay/getQuote")
     - `exp`: Token expiration timestamp (max 72 hours)
-    - `digest`: SHA-256 hash of the request body (for POST requests)
+    - `digest`: SHA-512 hash (base64-encoded) of the request body (for POST/PUT requests)
     
     ### Example API Call
     
@@ -92,21 +92,33 @@ paths:
       description: >-
         Query for all convertible token pairs and the tokens' respective
         upper/lower limits. If fromAsset and toAsset are not provided, all
-        supported pairs will be returned.
+        supported pairs will be returned. Note: the headers are required to maintain consistency for trading based APIs
       tags:
         - Convert-To-Pay
       parameters:
+        - name: X-Client-Id
+          in: header
+          required: false
+          description: Clients will need to ensure that the correct IDs are sent
+          schema:
+            type: string
+        - name: X-Enterprise-Id
+          in: header
+          required: false
+          description: Enterprise ID
+          schema:
+            type: string
         - name: fromAsset
           in: query
           required: false
-          description: User spends asset
+          description: From Asset ticker
           schema:
             type: string
             example: USDT
         - name: toAsset
           in: query
           required: false
-          description: User receives fiat asset
+          description: To asset Ticker
           schema:
             type: string
             example: USD
@@ -127,17 +139,17 @@ paths:
                       type: string
                       example: USD
                     fromAssetMinAmount:
-                      type: string
-                      example: '10'
+                      type: number
+                      example: 10
                     fromAssetMaxAmount:
-                      type: string
-                      example: '1000000'
+                      type: number
+                      example: 1000000
                     toAssetMinAmount:
-                      type: string
-                      example: '10'
+                      type: number
+                      example: 10
                     toAssetMaxAmount:
-                      type: string
-                      example: '1000000'
+                      type: number
+                      example: 1000000
                   required:
                     - fromAsset
                     - toAsset
@@ -164,10 +176,29 @@ paths:
     get:
       summary: Query order quantity precision per asset
       description: |-
-        Query for supported asset precision information
+        Query for supported asset precision information. Note: the headers are required to maintain consistency for trading based APIs
       tags:
         - Convert-To-Pay
-      parameters: []
+      parameters:
+        - name: X-Client-Id
+          in: header
+          required: false
+          description: Clients will need to ensure that the correct IDs are sent
+          schema:
+            type: string
+        - name: X-Enterprise-Id
+          in: header
+          required: false
+          description: Enterprise ID
+          schema:
+            type: string
+        - name: assetKey
+          in: query
+          required: false
+          description: Asset key to filter by (e.g., BTC)
+          schema:
+            type: string
+            example: BTC
       security:
         - ApiKeyAuth: []
         - BearerAuth: []
@@ -181,26 +212,48 @@ paths:
                 items:
                   type: object
                   properties:
-                    asset:
+                    key:
                       type: string
-                      example: BTC
-                    decimals:
+                      description: Unique asset identifier combining chainId and contract address
+                      example: "16_PCT_0x0A8744c2"
+                    name:
+                      type: string
+                      description: Full name of the asset
+                      example: "Pangolin Coston"
+                    decimal:
                       type: integer
                       format: int32
-                      example: 8
+                      description: Number of decimal places for the asset
+                      example: 18
+                    chainId:
+                      type: string
+                      description: Blockchain chain ID
+                      example: "16"
+                    symbol:
+                      type: string
+                      description: Asset ticker symbol
+                      example: "PCT"
+                    chainName:
+                      type: string
+                      description: Full name of the blockchain network
+                      example: "Coston Testnet (Songbird)"
                   required:
-                    - asset
-                    - decimals
+                    - key
+                    - name
+                    - decimal
+                    - chainId
+                    - symbol
+                    - chainName
               examples:
                 example1:
                   summary: Example Response
                   value:
-                    - asset: BTC
-                      decimals: 8
-                    - asset: ETH
-                      decimals: 18
-                    - asset: USDT
-                      decimals: 6
+                    - key: "16_PCT_0x0A8744c2"
+                      name: "Pangolin Coston"
+                      decimal: 18
+                      chainId: "16"
+                      symbol: "PCT"
+                      chainName: "Coston Testnet (Songbird)"
         '400':
           description: Bad Request
           content:
@@ -217,9 +270,26 @@ paths:
     post:
       summary: Send quote request
       description: |-
-        Request a quote for the requested token pairs
+        Request a quote for the requested token pairs.
+
+        **IMPORTANT**: You must provide either `fromAmount` OR `toAmount`, but NOT both. If both are provided, `fromAmount` will be used and `toAmount` will be ignored.
+
+        Note: the headers are required to maintain consistency for trading based APIs
       tags:
         - Convert-To-Pay
+      parameters:
+        - name: X-Client-Id
+          in: header
+          required: true
+          description: Clients will need to ensure that the correct IDs are sent
+          schema:
+            type: string
+        - name: X-Enterprise-Id
+          in: header
+          required: true
+          description: Enterprise ID
+          schema:
+            type: string
       requestBody:
         required: true
         content:
@@ -241,13 +311,8 @@ paths:
                 fromAmount:
                   type: string
                   description: >-
-                    When specified, it is the amount you will be debited after the conversion
+                    The amount you want to convert FROM. Provide either fromAmount OR toAmount, not both. If both are specified, fromAmount takes precedence.
                   example: '50000'
-                toAmount:
-                  type: string
-                  description: >-
-                    When specified, it is the amount you will be debited after the conversion. If fromAmount is also specified, fromAmount will be used and toAmount will be ignored.
-                  example: '183624.98'
 
       security:
         - ApiKeyAuth: []
@@ -294,14 +359,14 @@ paths:
                   quoteId:
                     type: string
                     description: 'The unique ID assigned by HTM to identify a quote'
-                    example: '12415572564'
+                    example: '019b4552-4e10-7632-8a71-e55a3ccff447'
                   ratio:
                     type: string
                     example: '38163.7'
                   inverseRatio:
                     type: string
                     example: '0.0000262'
-                  validTime:
+                  validTimestamp:
                     type: integer
                     format: int64
                     description: 'The UTC timestamp in milliseconds until when the quote is valid'
@@ -335,9 +400,26 @@ paths:
     post:
       summary: Accept Quote and get a payment ID
       description: |-
-        Accept the offered quote by quote ID and get a payment ID
+        Accept the offered quote by quote ID and get a payment ID.
+
+        **IMPORTANT**: For multi-chain tokens (like USDT), you must provide the `chainId` (e.g., 1 for ethereum:mainnet, 195 for tron:nile).
+
+        Note: the headers are required to maintain consistency for trading based APIs
       tags:
         - Convert-To-Pay
+      parameters:
+        - name: X-Client-Id
+          in: header
+          required: true
+          description: Clients will need to ensure that the correct IDs are sent
+          schema:
+            type: string
+        - name: X-Enterprise-Id
+          in: header
+          required: true
+          description: Enterprise ID
+          schema:
+            type: string
       requestBody:
         required: true
         content:
@@ -351,6 +433,10 @@ paths:
                   type: string
                   description: The quote ID to accept. This is used as idempotency key.
                   example: '0199276c-8df3-79ab-9d6b-e25e35c19123'
+                chainId:
+                  type: string
+                  description: Chain ID required for multi-chain tokens (e.g., "1" for ethereum:mainnet, "195" for tron:nile)
+                  example: "1"
         
       security:
         - ApiKeyAuth: []
@@ -372,22 +458,17 @@ paths:
                     format: int64
                     description: 'The UTC timestamp in milliseconds when the payment was created'
                     example: 1741456789012
-                  validTime:
-                    type: integer
-                    format: int64
-                    description: 'The UTC timestamp in milliseconds until when the quote is valid'
-                    example: 1741123456789
                   depositAddress:
                     type: string
                     example: '0x3f5CE5FBFe3E9af3971dD833D26BA9b5C936f0bE'
                     description: 'The crypto asset deposit address to fund the payment'
                   depositChain:
                     type: string
-                    example: Ethereum
-                    description: 'The blockchain network for the crypto asset deposit'
+                    example: "1"
+                    description: 'The blockchain chain ID for the crypto asset deposit'
                   orderStatus:
                     type: string
-                    example: PROCESS
+                    example: NEW
                 required:
                   - paymentId
                   - createTime
@@ -410,13 +491,26 @@ paths:
     get:
       summary: Order status
       description: |-
-        Query order status by payment ID.
+        Query order status by payment ID
       tags:
         - Convert-To-Pay
       parameters:
+        - name: X-Client-Id
+          in: header
+          required: false
+          description: Clients will need to ensure that the correct IDs are sent
+          schema:
+            type: string
+        - name: X-Enterprise-Id
+          in: header
+          required: true
+          description: Enterprise ID
+          schema:
+            type: string
         - name: paymentId
           in: query
-          required: false
+          required: true
+          description: Payment Id
           schema:
             type: string
             example: '0186bdfe-2b43-7b0c-85dd-dd03f30e9ecd'
@@ -437,7 +531,7 @@ paths:
                     example: '0186bdfe-2b43-7b0c-85dd-dd03f30e9ecd'
                   orderStatus:
                     type: string
-                    example: SUCCESS
+                    example: NEW
                   fromAsset:
                     type: string
                     example: USDT
@@ -487,14 +581,26 @@ paths:
     get:
       summary: Get Convert To Pay Payment History
       description: |-
-        - The max interval between startTime and endTime is 30 days.
+        Query payment history within a time range. The max interval between startTime and endTime is 30 days.
       tags:
         - Convert-To-Pay
       parameters:
+        - name: X-Client-Id
+          in: header
+          required: false
+          description: Clients will need to ensure that the correct IDs are sent
+          schema:
+            type: string
+        - name: X-Enterprise-Id
+          in: header
+          required: true
+          description: Enterprise ID
+          schema:
+            type: string
         - name: startTime
           in: query
           required: true
-          description: UTC timestamp in ms
+          description: Start timestamp in milliseconds
           schema:
             type: integer
             format: int64
@@ -502,14 +608,14 @@ paths:
         - name: endTime
           in: query
           required: true
-          description: UTC timestamp in ms
+          description: End timestamp in milliseconds
           schema:
             type: integer
             format: int64
             example: 1756684800000
         - name: limit
           in: query
-          description: default 100, max 1000
+          description: "Limit of records to return (default: 100, max: 1000)"
           required: false
           schema:
             type: integer
@@ -540,7 +646,7 @@ paths:
                           example: '01992793-250e-78b4-82c9-dc2d13870564'
                         orderStatus:
                           type: string
-                          example: SUCCESS
+                          example: NEW
                         fromAsset:
                           type: string
                           example: USDT
